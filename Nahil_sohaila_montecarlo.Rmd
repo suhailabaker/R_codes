@@ -1,0 +1,121 @@
+---
+title: "Gapminder_Montecarlo"
+author: "suhaila_nahil"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+Loading required libraries
+```{r, include=TRUE}
+library(gapminder)
+library(pacman)
+pacman::p_load(data.table, fixest, stargazer, dplyr, magrittr)
+library("ggplot2")
+library(gganimate)
+```
+
+Gapminder data set :
+```{r}
+head(gapminder)
+Y=gapminder$lifeExp
+X=gapminder$pop
+nrow(gapminder)
+```
+
+#Description:
+
+1704 observations; fills a size niche between iris (150 rows) and the likes of diamonds (54K rows)
+6 variables
+country a factor with 142 levels
+continent, a factor with 5 levels
+year: going from 1952 to 2007 in increments of 5 years
+pop: population
+gdpPercap: GDP per capita
+lifeExp: life expectancy
+
+Transition through distinct states in time
+
+```{r}
+
+p <- ggplot(
+  gapminder, 
+  aes(x = pop, y=lifeExp, size = gdpPercap, colour = country)
+  ) +
+  geom_point(show.legend = FALSE, alpha = 0.7) +
+  scale_color_viridis_d() +
+  scale_size(range = c(2, 12)) +
+  scale_x_log10() +
+  labs(x = "POP", y = "Life expectancy")
+p
+```
+
+```{r}
+
+p + transition_time(year) +
+  labs(title = "Year: {frame_time}")
+  
+
+```
+
+Let the view follow the data in each frame
+
+```{r}
+
+p + facet_wrap(~continent) +
+  transition_time(year) +
+  labs(title = "Year: {frame_time}")
+```
+
+Linear regression using lm function:
+
+```{r}
+lrm.fit=lm(Y~X)
+lrm.fit$coef
+```
+#Montecarlo simulation
+
+ In statistics, ordinary least squares (OLS) is a type of linear least squares method for estimating the unknown parameters in a linear regression model. OLS chooses the parameters of a linear function of a set of explanatory variables by the principle of least squares: minimizing the sum of the squares of the differences between the observed dependent variable (values of the variable being observed) in the given dataset and those predicted by the linear function of the independent variable.
+ 
+```{r}
+#parameters 
+Beta0=6#True value of intercept
+Beta1=0.00005 #True value of slope 
+n=1704 #Sample Size
+# Pesedo code for 5000 simulation 
+N=5000 #Number of replications
+set.seed(1234)#to reproduce the same result
+int.est=numeric(N)#empty vector to store the intercept 
+slp.est=numeric(N)#empty vector to store the slope 
+slope_DT=numeric(N)
+intercept_DT=numeric(N)
+for (i in 1:N){
+  Y=Beta0+Beta1*X+rnorm(n,0,5)
+  lrm.fit=lm(Y~X)
+  data_i = data.table(Y = Y, X = X)
+  
+#store intercept for each replication
+int.est[[i]]=as.vector(lrm.fit$coef[1])
+
+#store slope for each replication
+slp.est[[i]]=as.vector(lrm.fit$coef[2])
+
+ols_i <- fixest::feols(data = data_i, Y ~ X)
+# Extract slope coefficient and save
+slope_DT[i] <- ols_i$coefficients[2]
+intercept_DT[i] <- ols_i$coefficients[1]
+
+
+}
+```
+
+ Summary statistics using OLS
+```{r}
+
+
+estimates_DT <- data.table(beta_1 = slope_DT, beta_0 = intercept_DT)
+stargazer(estimates_DT[, c("beta_1", "beta_0")], type = "text")
+
+
+```
